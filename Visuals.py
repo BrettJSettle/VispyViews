@@ -11,29 +11,18 @@ from pyqtgraph import QtGui, QtCore
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 from Points import *
+from vispy.scene.visuals import Text
 
-class BorderVisual(PolygonVisual):
+
+class ClusterVisual(PolygonVisual):
     def __init__(self, active_points):
-        BorderVisual.__init__(self, color=None, border_color='green')
-        self.points = BorderVisual.getBorderPoints([p.pos for p in active_points])
-
-    @staticmethod
-    def order_walls(walls):
-        new_wall = walls.pop(0)
-        while walls:
-            add = [wall for wall in walls if new_wall[-1] in wall][0]
-            walls.remove(add)
-            add.remove(new_wall[-1])
-            new_wall.extend(add)
-        return new_wall
-
-    @staticmethod
-    def getBorderPoints(points):
-        if len(points) > 2:
-            ch = ConvexHull(points)
-            outerwalls = order_walls(ch.simplices.tolist())
-            return np.array([points[i] for i in outerwalls], dtype=np.float32)
-            
+        PolygonVisual.__init__(self, color=None, border_color='white')
+        self.points = active_points
+        self.centroid = np.mean([p.pos for p in active_points], 0)
+        self.area = 1#concaveArea([p.pos for p in active_points])
+        self.density = len(self.points) / self.area
+        self.border_points = getBorderPoints([p.pos for p in active_points])
+        self.pos = np.array(self.border_points, dtype=np.float32)
 
 class ChannelVisual(Visual):
     channel_colors = {}
@@ -138,9 +127,16 @@ class ChannelVisual(Visual):
         self._program['a_size'] = gloo.VertexBuffer(self._size)
         self._program.draw('points')
 
-class ROIVisual(PolygonVisual):
-    def __init__(self, pos):
+class ROIVisual(QtCore.QObject, PolygonVisual):
+    translateFinished = Signal(object)
+    selectionChanged = Signal(object, bool)
+    def __init__(self, num, pos):
+        QtCore.QObject.__init__(self)
+        self.id = num
         PolygonVisual.__init__(self, color=None, border_color='white')
+        self.text = Text("%d" % self.id, color='white')
+        self.text.font_size=20
+        self.text.pos = pos
         self.points = np.array([pos],dtype=np.float32)
         self.finished = False
         self.hover = False
@@ -171,18 +167,25 @@ class ROIVisual(PolygonVisual):
             self.pos = self.points
         
     def select(self):
-        self.selected = True
-        self.border_color = np.array([1, 0, 0], dtype=np.float32)
+        if not self.selected:
+            self.selected = True
+            self.border_color = np.array([1, 0, 0], dtype=np.float32)
+            self.selectionChanged.emit(self, True)
 
     def deselect(self):
-        self.selected = False
-        self.border_color = self._selected_color
+        if self.selected:
+            self.selected = False
+            self.border_color = self._selected_color
+            self.selectionChanged.emit(self, False)
 
     def draw_finished(self):
         self.points = np.vstack((self.points, self.points[0]))
         self.pos = self.points
         self.finished = True
         self.select()
+
+    def finish_translate(self):
+        self.translateFinished.emit(self)
 
     def contains(self, pt):
         if not hasattr(self, 'path_item'):
@@ -196,13 +199,15 @@ class ROIVisual(PolygonVisual):
     def translate(self, dxy):
         self.points += dxy
         self.pos = self.points
+        self.text.pos = self.pos[0]
         if hasattr(self, 'path_item'):
             self.path_item.translate(*dxy)
     
     def draw(self, tr_sys):
         if not self.finished:
             color = np.ones((len(self.points), 3)).astype(np.float32)
-            lp = LinePlotVisual(data=self.points, color=color)
+            lp = LinePlotVisual(data=self.points, color=color, marker_size=5)
             lp.draw(tr_sys)
         elif len(self.points) > 2:
             PolygonVisual.draw(self, tr_sys)
+            self.text.draw(tr_sys)

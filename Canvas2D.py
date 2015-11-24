@@ -13,9 +13,10 @@ import pyqtgraph.opengl as gl
 from Points import *
 from Visuals import *
 
-class Canvas(app.Canvas):
-    __name__ = '2D Canvas Widget'
+class Canvas(QtCore.QObject, app.Canvas):
+    roiCreated = Signal(object)
     def __init__(self):
+        QtCore.QObject.__init__(self)
         app.Canvas.__init__(self, keys='interactive')
         ps = self.pixel_scale
 
@@ -37,6 +38,7 @@ class Canvas(app.Canvas):
                        blend_func=('src_alpha', 'one_minus_src_alpha'))
 
         self.timer = app.Timer('auto', connect=self.on_timer, start=True)
+        self.native.setFixedSize(800, 600)
 
     def on_timer(self, event):
         self.update()
@@ -50,8 +52,12 @@ class Canvas(app.Canvas):
             self.current_roi.draw_finished()
             self.roi_visuals.append(self.current_roi)
             self.current_roi.select()
+            self.roiCreated.emit(self.current_roi)
         elif any([roi.hover for roi in self.roi_visuals]) and event.button == 2 and not self.drawing_roi and event.last_event.type == 'mouse_press':
             self.current_roi.contextMenuEvent(self.native.mapToGlobal(QtCore.QPoint(*event.pos)))
+        for roi in self.roi_visuals:
+            if roi.selected:
+                roi.finish_translate()
     
     def translatedPoint(self, pos):
         return np.array([(pos[0] - self.panzoom.translate[0]) / self.panzoom.scale[0], (pos[1] - self.panzoom.translate[1]) / self.panzoom.scale[1]])
@@ -67,8 +73,10 @@ class Canvas(app.Canvas):
                     else:
                         roi.select()
         else:
+            self.current_roi = None
             for roi in self.roi_visuals:
                 if roi.mouseIsOver(self.translatedPoint(event.pos)):
+                    self.current_roi = roi
                     roi.select()
                 else:
                     roi.deselect()
@@ -103,7 +111,10 @@ class Canvas(app.Canvas):
                 else:
                     for roi in self.roi_visuals:
                         roi.deselect()
-                    self.current_roi = ROIVisual(pos)
+                    new_id = 1
+                    while new_id in [roi.id for roi in self.roi_visuals]:
+                        new_id += 1
+                    self.current_roi = ROIVisual(new_id, pos)
                     self.drawing_roi = True
             self.update()
 
@@ -116,13 +127,19 @@ class Canvas(app.Canvas):
 
     def on_resize(self, event):
         self.width, self.height = event.size
+        #if hasattr(self, 'old_width'):
+        #    dx = self.old_width / self.width - 1
+        #    dy = self.old_height / self.height  - 1
+            #self.transform.transforms[1].zoom(np.exp(np.array([dx, dy])), (0, 0))
         gloo.set_viewport(0, 0, self.width, self.height)
+        #self.old_width, self.old_height = self.size
 
     def on_draw(self, event):
         gloo.clear()
+        for ch in self.markers:
+            ch.draw(self.tr_sys)
         for roi in self.roi_visuals:
             roi.draw(self.tr_sys)
         if self.current_roi != None:
             self.current_roi.draw(self.tr_sys)
-        for ch in self.markers:
-            ch.draw(self.tr_sys)
+        
