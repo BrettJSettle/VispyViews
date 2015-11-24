@@ -86,7 +86,7 @@ def openFile(fname=''):
     win.statusBar().showMessage('Found channels: ' + ', '.join([c.decode('utf-8') for c in channel_names]))
     t = time.time()
     headers = [s.strip() for s in open(fname, 'r').readline().split('\t')]
-    dtypes = {'names': headers, 'formats': ['a16'] + (['f16'] * (len(headers) - 1))}
+    dtypes = {'names': headers, 'formats': ['a16'] + (['f8'] * (len(headers) - 1))}
     data = np.loadtxt(fname, skiprows=1, dtype=dtypes, delimiter='\t')
     active_points = [ActivePoint(dict(zip(headers, d))) for d in data]
     for ch in channel_names:
