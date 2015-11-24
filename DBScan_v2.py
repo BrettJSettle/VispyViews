@@ -63,6 +63,8 @@ def points_in_roi(roi):
 
 def connect_roi(roi):
     roi.menu.addAction(QtGui.QAction("Plot points on 3D Plane", roi.menu, triggered = lambda : make3DPlot(roi)))
+    roi.menu.addAction(QAction("Export points in ROI", roi.menu, triggered=lambda : \
+    exportPointsInROI(roi)))
     roi.menu.addAction(QtGui.QAction('Remove points in ROI', roi.menu, triggered = lambda : remove_points_in_roi(roi)))
 
 def mouseRelease(event):
@@ -117,8 +119,31 @@ def performDBSCAN(roi=None):
         channel.analyzed = False
     dbscanWidget.clusterTable.setHorizontalHeaderLabels(["Cluster #", "N Points", 'Mean XY'])
 
-def onClose(event):
+def fillROITable():
+    values = []
+    roiDataTable.clear()
+    data = []
+    for roi in plotWidget.getViewBox().addedItems:
+        if isinstance(roi, Freehand):
+            pts = []
+            for channel in channels:
+                pts.append(points_in_roi(roi, channel=channel))
+            data.append([roi.id, sum([len(p) for p in pts])] + [len(p) for p in pts])
+    roiDataTable.setData(data)
+    roiDataTable.setHorizontalHeaderLabels(['ROI #', 'N Points'] + ["N %s" % i.channel_name for i in channels])
 
+def exportPointsInROI(roi):
+    fname = str(QtGui.QFileDialog.getSaveFileName(None, 'Save Points in ROI to text file', '*.txt'))
+    if fname == '':
+        return
+    points = points_in_roi(roi)
+    headers = points[0].data.keys()
+    with open(fname, 'w') as outf:
+        outf.write('\t'.join(headers) + '\n')
+        for p in points:
+            outf.write('\t'.join([p.data[k] for k in headers]) + '\n')
+
+def onClose(event):
     sys.exit(0)
 
 if __name__ == '__main__':
@@ -154,7 +179,7 @@ if __name__ == '__main__':
     win.closeEvent = onClose
     canvas.on_mouse_release = mouseRelease
     canvas.native.show()
-    canvas.native.setGeometry(300, 50, 800, 800)
+    #canvas.native.setGeometry(300, 50, 800, 800)
     menuBar = win.menuBar()
     fileMenu = menuBar.addMenu('File')
     fileMenu.addAction(QtGui.QAction('Open Scatter', fileMenu, triggered=lambda : openFile()))

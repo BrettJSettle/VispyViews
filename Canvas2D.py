@@ -83,7 +83,6 @@ class Canvas(app.Canvas):
 
 
     def on_mouse_move(self, event):
-
         pos = self.translatedPoint(event.pos)
         for roi in self.roi_visuals:
             if not self.drawing_roi:
