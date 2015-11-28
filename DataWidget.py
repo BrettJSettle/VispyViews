@@ -24,8 +24,6 @@ class DataWidget(pg.TableWidget):
 		menu = QMenu('%s Options' % self.__name__)
 		self.contextMenu.setTitle('Edit')
 		menu.addMenu(self.contextMenu)
-		fileMenu = menu.addMenu("File")
-		fileMenu.addAction(QAction('Open file...', menu, triggered=lambda : self.load_file(append=False)))
 		dataMenu = menu.addMenu("Data Options")
 		dataMenu.addAction(QAction('Transpose Data', menu, triggered=self.transpose))
 		dataMenu.addAction(QAction('Remove Selected Column(s)', menu, triggered=lambda : [self.removeColumn(i) for i in sorted({cell.column() for cell in self.selectedItems()})[::-1]]))
@@ -35,13 +33,6 @@ class DataWidget(pg.TableWidget):
 		if not self.addedMenu.isEmpty():
 			menu.addMenu(self.addedMenu)
 		return menu
-
-	def plot(self):
-		if self.isEmpty():
-			return
-		name = "%s Plot" % self.__name__
-		print(self.getData())
-		TraceWidget(self.getData())
 
 	def isEmpty(self):
 		return self.rowCount() == 0 and self.columnCount() == 0

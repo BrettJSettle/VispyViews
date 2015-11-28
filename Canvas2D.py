@@ -12,9 +12,11 @@ import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 from Points import *
 from Visuals import *
+from file_ import *
 
 class Canvas(QtCore.QObject, app.Canvas):
     roiCreated = Signal(object)
+    roiDeleted = Signal(object)
     def __init__(self):
         QtCore.QObject.__init__(self)
         app.Canvas.__init__(self, keys='interactive')
@@ -51,6 +53,8 @@ class Canvas(QtCore.QObject, app.Canvas):
             self.drawing_roi = False
             self.current_roi.draw_finished()
             self.roi_visuals.append(self.current_roi)
+            self.current_roi.menu.addAction(QtGui.QAction('Export ROIs', self.current_roi.menu, triggered=lambda : save_file_gui(self.export_rois, prompt='Export ROIs to text file', filetypes='Text Files (*.txt)')))
+            self.current_roi.menu.addAction(QtGui.QAction('Import ROIs', self.current_roi.menu, triggered=lambda : open_file_gui(self.import_rois, prompt='Import ROIs from text file', filetypes='Text Files (*.txt)')))
             self.current_roi.select()
             self.roiCreated.emit(self.current_roi)
         elif any([roi.hover for roi in self.roi_visuals]) and event.button == 2 and not self.drawing_roi and event.last_event.type == 'mouse_press':
@@ -59,6 +63,18 @@ class Canvas(QtCore.QObject, app.Canvas):
             if roi.selected:
                 roi.finish_translate()
     
+    def export_rois(self, fname):
+        roi_strs = [repr(roi) for roi in self.roi_visuals]
+        with open(fname, 'w') as outf:
+            outf.write('\n'.join(roi_strs))
+
+    def import_rois(self, fname):
+        rois = ROIVisual.importROIs(fname)
+        for roi in rois:
+            while roi.id in [r.id for r in self.roi_visuals]:
+                roi.setId(roi.id + 1)
+            self.roi_visuals.append(roi)
+
     def translatedPoint(self, pos):
         return np.array([(pos[0] - self.panzoom.translate[0]) / self.panzoom.scale[0], (pos[1] - self.panzoom.translate[1]) / self.panzoom.scale[1]])
 
@@ -82,12 +98,16 @@ class Canvas(QtCore.QObject, app.Canvas):
                     roi.deselect()
 
     def on_key_press(self, event):
-        if event.key == 'Delete':
+        if event.key == 'a' and 'Control' in event.modifiers:
+            for roi in self.roi_visuals:
+                roi.select()
+        elif event.key == 'Delete':
             for roi in self.roi_visuals[:]:
                 if roi.selected:
                     if self.current_roi == roi:
                         self.current_roi = None
                     self.roi_visuals.remove(roi)
+                    self.roiDeleted.emit(roi)
 
 
     def on_mouse_move(self, event):
@@ -127,12 +147,7 @@ class Canvas(QtCore.QObject, app.Canvas):
 
     def on_resize(self, event):
         self.width, self.height = event.size
-        #if hasattr(self, 'old_width'):
-        #    dx = self.old_width / self.width - 1
-        #    dy = self.old_height / self.height  - 1
-            #self.transform.transforms[1].zoom(np.exp(np.array([dx, dy])), (0, 0))
         gloo.set_viewport(0, 0, self.width, self.height)
-        #self.old_width, self.old_height = self.size
 
     def on_draw(self, event):
         gloo.clear()

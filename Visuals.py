@@ -146,6 +146,37 @@ class ROIVisual(QtCore.QObject, PolygonVisual):
         self.colorDialog.colorSelected.connect(self.colorSelected)
         self._make_menu()
 
+    def setId(self, num):
+        self.id = num
+        self.text.text = "%d" % self.id
+
+    @staticmethod
+    def importROIs(fname):
+        rois = []
+        text = open(fname, 'r').read()
+        kind=None
+        pts=None
+        for line in text.split('\n'):
+            if kind is None:
+                kind=line
+                pts=[]
+            elif line=='':
+                rois.append(ROIVisual(1, pts[0]))
+                for p in pts[1:]:
+                    rois[-1].extend(p)
+                rois[-1].draw_finished()
+                kind=None
+                pts=None
+            elif kind == 'freehand':
+                pts.append(tuple(int(i) for i in line.split()))
+        return rois
+
+    def __repr__(self):
+        s = 'freehand\n'
+        s += '\n'.join(['%d\t%d' % (p[0], p[1]) for p in self.points])
+        s += '\n'
+        return s
+
     def colorSelected(self, color):
         self.border_color = (color.redF(), color.greenF(), color.blueF())
         self._selected_color = self.border_color

@@ -18,6 +18,8 @@ import sys, time
 from DataWidget import DataWidget
 from scan_ import DensityBasedScanner
 import threading
+from file_ import *
+from settings import settings
 
 class Visual3D(gl.GLScatterPlotItem):
     def __init__(self, active_points):
@@ -72,16 +74,12 @@ def connect_roi(roi):
     roi.translateFinished.connect(fillROITable)
     roi.selectionChanged.connect(lambda roi, b: performScan(roi))
     roi.menu.addAction(QtGui.QAction("Plot points on 3D Plane", roi.menu, triggered = lambda : make3DPlot(roi)))
-    roi.menu.addAction(QtGui.QAction("Export points in ROI", roi.menu, triggered=lambda : exportPointsInROI(roi)))
+    roi.menu.addAction(QtGui.QAction("Export points in ROI", roi.menu, triggered=lambda : save_file_gui(exportPointsInROI, prompt='Export Points in roi %d to a text file' % roi.id, filetypes='Text Files (*.txt)', args=[roi])))
     roi.menu.addAction(QtGui.QAction('Remove points in ROI', roi.menu, triggered = lambda : remove_points_in_roi(roi)))
     fillROITable()
 
-def openFile(fname=''):
+def import_channels(fname):
     global canvas
-    if type(fname) != str or fname == '':
-        fname= QtGui.QFileDialog.getOpenFileName(None, "Open a text file", '', "Text Files (*.txt)")
-    if fname == '':
-        return
     channel_names = set(np.loadtxt(fname, usecols=[0], delimiter='\t', dtype='S16', skiprows=1))
     win.statusBar().showMessage('Found channels: ' + ', '.join([c.decode('utf-8') for c in channel_names]))
     t = time.time()
@@ -136,7 +134,7 @@ def fillROITable():
     roiDataTable.setData(data)
     roiDataTable.setHorizontalHeaderLabels(['ROI #', 'N Points'] + ["N %s" % i.name for i in canvas.markers])
 
-def exportPointsInROI(roi):
+def exportPointsInROI(fname, roi):
     fname = str(QtGui.QFileDialog.getSaveFileName(None, 'Save Points in ROI to text file', '*.txt'))
     if fname == '':
         return
@@ -166,7 +164,7 @@ class EventFilter(QtCore.QObject):
                 filename=url.toString()
                 filename=filename.split('file:///')[1]
                 if filename.endswith('.txt'):
-                    openFile(filename)  #This fails on windows symbolic links.  http://stackoverflow.com/questions/15258506/os-path-islink-on-windows-with-python
+                    import_channels(filename)#This fails on windows symbolic links.  http://stackoverflow.com/questions/15258506/os-path-islink-on-windows-with-python
                 else:
                     obj.statusBar().showMessage('%s widget does not support %s files...' % (obj.__name__, filetype))
                 event.accept()
@@ -178,6 +176,7 @@ eventFilter = EventFilter()
 def onClose(event):
     scanThread.exit(0)
     scanThread.terminate()
+    settings.save()
     sys.exit(0)
 
 def drawEvent(event):
@@ -227,11 +226,12 @@ if __name__ == '__main__':
     win.closeEvent = onClose
     #canvas.on_mouse_release = mouseRelease
     canvas.roiCreated.connect(connect_roi)
+    canvas.roiDeleted.connect(fillROITable)
     canvas.native.show()
     #canvas.native.setGeometry(300, 50, 800, 800)
     menuBar = win.menuBar()
     fileMenu = menuBar.addMenu('File')
-    fileMenu.addAction(QtGui.QAction('Open Scatter', fileMenu, triggered=openFile))
+    fileMenu.addAction(QtGui.QAction('Open Scatter', fileMenu, triggered=lambda : open_file_gui(import_channels, prompt='Import channels from Text file', filetypes="Text Files (*.txt)")))
     view3DWindow = None
     win.show()
     a.exec_()
