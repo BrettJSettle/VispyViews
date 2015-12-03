@@ -90,7 +90,9 @@ def import_channels(fname):
     for ch in channel_names:
         ps = [p for p in active_points if p['Channel Name'] == ch]
         canvas.markers.append(ChannelVisual(name=ch.decode('utf-8'), active_points=ps))
-    canvas.set_pos(np.mean([p.pos for p in active_points], 0))
+    #center = np.mean([p.pos for p in active_points], 0)
+    #canvas.set_pos(center)
+    #canvas.panzoom.zoom((.1, .1), center)
     win.statusBar().showMessage('Successfully imported %s (%s s)' % (fname, time.time() - t))
 
 def scanFinished(clusts, noise):
@@ -99,9 +101,9 @@ def scanFinished(clusts, noise):
     values = []
     for cluster in clusters:
         meanxy = np.mean([p.pos for p in cluster.points], 0)
-        values.append([len(cluster.points), cluster.centroid, cluster.area, cluster.density])
+        values.append([len(cluster.points), cluster.centroid, cluster.grid_area, cluster.box_area, cluster.density, cluster.averageDistance])
     dbscanWidget.clusterTable.setData(values)
-    dbscanWidget.clusterTable.setHorizontalHeaderLabels(["N Points", 'Centroid', 'Area', 'Density'])
+    dbscanWidget.clusterTable.setHorizontalHeaderLabels(["N Points", 'Centroid', 'Grid Area', 'Box Area', 'Density', 'Average Distance'])
     win.statusBar().showMessage('%d clusters found (%s s)' % (len(clusters), time.time() - scanThread.start_time))
 
 def performScan(roi=None):
@@ -191,7 +193,7 @@ if __name__ == '__main__':
     clusters = []
     dbscanWidget = uic.loadUi('ui/DBScan.ui')
     dbscanWidget.__name__ = 'DBSCAN'
-
+    settings.reload()
     scanThread = DensityBasedScanner()
     scanThread.scanFinished.connect(scanFinished)
     dbscanWidget.epsilonSpin.setOpts(value=30, step=.1, maximum=1000)

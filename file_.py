@@ -10,10 +10,9 @@ def open_file_gui(func, filetypes, prompt='Open File', args=[]):
         filename=settings.filename
     else:
         filename = ''
-    filename= QFileDialog.getOpenFileName(None, caption=prompt, directory=filename, filter=filetypes)
-    filename=str(filename)
-    settings.filename = filename
+    filename= str(QFileDialog.getOpenFileName(None, caption=prompt, directory=filename, filter=filetypes))
     if filename != '':
+        settings.filename = filename
         func(filename, *args)
 
 def save_file_gui(func, filetypes, prompt = 'Save File', args = []):
@@ -21,8 +20,7 @@ def save_file_gui(func, filetypes, prompt = 'Save File', args = []):
         filename=settings.filename
     else:
         filename = ''
-    filename= QFileDialog.getSaveFileName(None, caption=prompt, directory=directory, filter=filetypes)
-    filename=str(filename)
-    settings.filename = filename
+    filename= str(QFileDialog.getSaveFileName(None, caption=prompt, directory=directory, filter=filetypes))
     if filename != '':
+        settings.filename = filename
         func(filename, *args)

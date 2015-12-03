@@ -18,10 +18,13 @@ class ClusterVisual(PolygonVisual):
     def __init__(self, active_points):
         PolygonVisual.__init__(self, color=None, border_color='white')
         self.points = active_points
-        self.centroid = np.mean([p.pos for p in active_points], 0)
-        self.area = 1#concaveArea([p.pos for p in active_points])
-        self.density = len(self.points) / self.area
-        self.border_points = getBorderPoints([p.pos for p in active_points])
+        pos = [p.pos for p in active_points]
+        self.centroid = np.mean(pos, 0)
+        self.box_area = boxArea(pos)#concaveArea([p.pos for p in active_points])
+        self.grid_area = gridArea(pos)
+        self.averageDistance = averageDistance(pos)
+        self.density = len(self.points) / self.boxArea
+        self.border_points = getBorderPoints(pos)
         self.pos = np.array(self.border_points, dtype=np.float32)
 
 class ChannelVisual(Visual):
