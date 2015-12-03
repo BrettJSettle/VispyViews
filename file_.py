@@ -20,6 +20,10 @@ def save_file_gui(func, filetypes, prompt = 'Save File', args = []):
         filename=settings.filename
     else:
         filename = ''
+    try:
+        directory = os.path.dirname(filename)
+    except:
+        directory = ''
     filename= str(QFileDialog.getSaveFileName(None, caption=prompt, directory=directory, filter=filetypes))
     if filename != '':
         settings.filename = filename

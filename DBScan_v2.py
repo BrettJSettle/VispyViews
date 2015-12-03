@@ -90,16 +90,16 @@ def import_channels(fname):
     for ch in channel_names:
         ps = [p for p in active_points if p['Channel Name'] == ch]
         canvas.markers.append(ChannelVisual(name=ch.decode('utf-8'), active_points=ps))
-    #center = np.mean([p.pos for p in active_points], 0)
-    #canvas.set_pos(center)
-    #canvas.panzoom.zoom((.1, .1), center)
+    x, y = np.transpose([p.pos for p in active_points])
+    canvas.panzoom.translate = [0, 0, 0, 0]
+    canvas.panzoom.scale = [.05, .05, 0, 0]
     win.statusBar().showMessage('Successfully imported %s (%s s)' % (fname, time.time() - t))
 
 def scanFinished(clusts, noise):
     global clusters
     clusters = clusts
     values = []
-    for cluster in clusters:
+    for cluster in clusters[:100]:
         meanxy = np.mean([p.pos for p in cluster.points], 0)
         values.append([len(cluster.points), cluster.centroid, cluster.grid_area, cluster.box_area, cluster.density, cluster.averageDistance])
     dbscanWidget.clusterTable.setData(values)
@@ -119,7 +119,7 @@ def performScan(roi=None):
         points = points_in_roi(roi)
     if len(points) == 0:
         return
-    win.statusBar().showMessage('Clustering %d points' % len(points))
+    win.statusBar().showMessage('Clustering %d points. Analysis progress in command prompt' % len(points))
     scanThread.start_time = time.time()
     scanThread.setPoints(points)
 
@@ -150,6 +150,16 @@ def exportPointsInROI(fname, roi):
             outf.write('\t'.join([str(p.data[k]) for k in headers]) + '\n')
     win.statusBar().showMessage('Successfully exported points to %s (%s s)' % (fname, time.time() - t))
 
+def exportCluster(fname):
+    win.statusBar().showMessage('Exporting %d clusters to %s' % (len(clusters), fname))
+    t = time.time()
+    headers = ["N Points", 'Centroid', 'Grid Area', 'Box Area', 'Density', 'Average Distance']
+    with open(fname, 'w') as outf:
+        outf.write('\t'.join(headers) + '\n')
+        for cluster in clusters:
+            outf.write('\t'.join([len(cluster.points), cluster.centroid, cluster.grid_area, cluster.box_area, cluster.density, cluster.averageDistance]) + '\n')
+    win.statusBar().showMessage('Successfully clusters points to %s (%s s)' % (fname, time.time() - t))
+
 class EventFilter(QtCore.QObject):
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -166,6 +176,7 @@ class EventFilter(QtCore.QObject):
                 filename=url.toString()
                 filename=filename.split('file:///')[1]
                 if filename.endswith('.txt'):
+                    win.statusBar().showMessage('Loading channels from %s' % (filename))
                     import_channels(filename)#This fails on windows symbolic links.  http://stackoverflow.com/questions/15258506/os-path-islink-on-windows-with-python
                 else:
                     obj.statusBar().showMessage('%s widget does not support %s files...' % (obj.__name__, filetype))
@@ -196,23 +207,23 @@ if __name__ == '__main__':
     settings.reload()
     scanThread = DensityBasedScanner()
     scanThread.scanFinished.connect(scanFinished)
-    dbscanWidget.epsilonSpin.setOpts(value=30, step=.1, maximum=1000)
+    dbscanWidget.epsilonSpin.setOpts(value=60, step=.1, maximum=1000)
     dbscanWidget.epsilonSpin.valueChanged.connect(lambda epsi: scanThread.update(epsilon=epsi))
-    dbscanWidget.minNeighborsSpin.setOpts(value=1, int=True, step=1)
+    dbscanWidget.minNeighborsSpin.setOpts(value=3, int=True, step=1)
     dbscanWidget.minNeighborsSpin.valueChanged.connect(lambda minNeighbors: scanThread.update(minNeighbors=minNeighbors))
-    dbscanWidget.minDensitySpin.setOpts(value=4, int=True, step=1)
+    dbscanWidget.minDensitySpin.setOpts(value=8, int=True, step=1)
     dbscanWidget.minDensitySpin.valueChanged.connect(lambda minP: scanThread.update(minP = minP))
     dbscanWidget.groupBox.toggled.connect(lambda : performScan())
+    dbscanWidget.exportButton.clicked.connect(lambda : save_file_gui(exportClusters, prompt='Export cluster data to text file', filetypes='*.txt'))
 
     roiDataTable = DataWidget(sortable=True)
     roiDataTable.setFormat("%3.3f")
     roiDataTable.__name__ = "ROI Data"
     roiDataTable.setHorizontalHeaderLabels(['ROI #', 'N Points'])
-
     
     win = QtGui.QMainWindow()
     win.setAcceptDrops(True)
-    win.installEventFilter(eventFilter)
+    #win.installEventFilter(eventFilter)
     widg = QtGui.QWidget()
     win.setCentralWidget(widg)
     layout = QtGui.QGridLayout(widg)

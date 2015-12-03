@@ -36,9 +36,8 @@ class DensityBasedScanner(QtCore.QThread):
 		clusters = []
 		labels = self.scanner.fit_predict([p.pos for p in self.points])
 		noise = [self.points[p] for p in np.where(labels == -1)[0]]
-		print('clustered')
 		for i in range(1, max(labels) + 1):
-			print('%d of %d' % (i, max(labels)))
+			print('Analyzing cluster %d of %d' % (i, max(labels)))
 			clust = []
 			for p in np.where(labels == i)[0]:
 				clust.append(self.points[p])

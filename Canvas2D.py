@@ -45,9 +45,6 @@ class Canvas(QtCore.QObject, app.Canvas):
     def on_timer(self, event):
         self.update()
 
-    def set_pos(self, pos):
-        self.panzoom.move([-pos[0], -pos[1]])
-
     def on_mouse_release(self, event):
         if event.button == 2 and self.drawing_roi:
             self.drawing_roi = False
