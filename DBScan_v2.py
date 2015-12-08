@@ -113,8 +113,9 @@ def performScan(roi=None):
         roi = canvas.current_roi
     points = []
     if roi == None or not any([ROI.selected for ROI in canvas.roi_visuals]):
-        for ch in canvas.markers:
-            points.extend(ch.points)
+        return
+        #for ch in canvas.markers:
+        #    points.extend(ch.points)
     elif roi != None:
         points = points_in_roi(roi)
     if len(points) == 0:
