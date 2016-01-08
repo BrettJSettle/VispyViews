@@ -11,13 +11,15 @@ class Settings():
 
 	def save(self):
 		with open('settings.p', 'wb') as outf:
-			p = pickle.dump(self.__dict__, outf)
+			pickle.dump(self.__dict__, outf)
 
 	def reload(self):
 		try:
 			if os.path.isfile('settings.p'):
 				with open('settings.p', 'rb') as inf:
-					self.__dict__.update(pickle.load(inf))
+					d = pickle.load(inf)
+					print(d)
+					self.__dict__.update(d)
 		except:
 			print('Settings file is corrupted. Removing...')
 			os.path.remove('settings.p')
