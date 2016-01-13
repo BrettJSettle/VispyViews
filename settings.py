@@ -18,7 +18,6 @@ class Settings():
 			if os.path.isfile('settings.p'):
 				with open('settings.p', 'rb') as inf:
 					d = pickle.load(inf)
-					print(d)
 					self.__dict__.update(d)
 		except:
 			print('Settings file is corrupted. Removing...')

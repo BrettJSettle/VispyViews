@@ -33,6 +33,12 @@ class DataWidget(pg.TableWidget):
 		if not self.addedMenu.isEmpty():
 			menu.addMenu(self.addedMenu)
 		return menu
+	
+	def save(self, data):
+	    fileName = QFileDialog.getSaveFileName(self, "Save As..", "", "Text file (*.txt)")
+	    if fileName == '':
+	        return
+	    open(fileName, 'w').write(data)
 
 	def isEmpty(self):
 		return self.rowCount() == 0 and self.columnCount() == 0

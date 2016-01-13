@@ -199,6 +199,12 @@ def drawEvent(event):
     for cluster in clusters:
         cluster.draw(canvas.tr_sys)
 
+def saveToTxt(data):
+    fileName = QtGui.QFileDialog.getSaveFileName(dbscanWidget, "Save As..", "", "Text file (*.txt)")
+    if fileName == '':
+        return
+    open(fileName, 'w').write(data)
+
 if __name__ == '__main__':
     a = QtGui.QApplication([])
     ignore = {'Z Rejected'}
@@ -218,6 +224,7 @@ if __name__ == '__main__':
     dbscanWidget.exportButton.clicked.connect(lambda : save_file_gui(exportClusters, prompt='Export cluster data to text file', filetypes='*.txt'))
 
     roiDataTable = DataWidget(sortable=True)
+    dbscanWidget.clusterTable.save = saveToTxt
     roiDataTable.setFormat("%3.3f")
     roiDataTable.__name__ = "ROI Data"
     roiDataTable.setHorizontalHeaderLabels(['ROI #', 'N Points'])
