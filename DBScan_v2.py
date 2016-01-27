@@ -60,12 +60,9 @@ def points_in_roi(roi, channel = None):
 
 
 def connect_roi(roi):
-    if scanThread.isRunning():
-        scanThread.terminate()
-        performScan(roi)
-    roi.translateFinished.connect(performScan)
     roi.translateFinished.connect(fillROITable)
-    roi.selectionChanged.connect(lambda roi, b: performScan(roi))
+    #roi.selectionChanged.connect(lambda roi, b: performScan(roi))
+    roi.menu.addAction(QtGui.QAction("DBScan inside ROI", roi.menu, triggered = lambda : performScan(roi)))
     roi.menu.addAction(QtGui.QAction("Plot points on 3D Plane", roi.menu, triggered = lambda : make3DPlot(roi)))
     roi.menu.addAction(QtGui.QAction("Export points in ROI", roi.menu, triggered=lambda : save_file_gui(exportPointsInROI, prompt='Export Points in roi %d to a text file' % roi.id, filetypes='Text Files (*.txt)', args=[roi])))
     roi.menu.addAction(QtGui.QAction('Remove points outside ROI', roi.menu, triggered = lambda : remove_points_outside_roi(roi)))
@@ -115,7 +112,7 @@ def performScan(roi=None):
         points = points_in_roi(roi)
     if len(points) == 0:
         return
-    dataWindow.statusBar().showMessage('Clustering %d points. Analysis progress in command prompt' % len(points))
+    dataWindow.statusBar().showMessage('Clustering %d points.' % len(points))
     scanThread.start_time = time.time()
     scanThread.setPoints(points)
 
@@ -216,15 +213,15 @@ if __name__ == '__main__':
     dataWindow.__name__ = 'DBSCAN'
     scanThread = DensityBasedScanner()
     scanThread.scanFinished.connect(scanFinished)
+    scanThread.messageEmit.connect(dataWindow.statusBar().showMessage)
     dataWindow.epsilonSpin.setOpts(value=60, step=.1, maximum=1000)
     dataWindow.epsilonSpin.valueChanged.connect(lambda epsi: scanThread.update(epsilon=epsi))
     dataWindow.minNeighborsSpin.setOpts(value=3, int=True, step=1)
     dataWindow.minNeighborsSpin.valueChanged.connect(lambda minNeighbors: scanThread.update(minNeighbors=minNeighbors))
     dataWindow.minDensitySpin.setOpts(value=8, int=True, step=1)
     dataWindow.minDensitySpin.valueChanged.connect(lambda minP: scanThread.update(minP = minP))
-    dataWindow.groupBox.toggled.connect(lambda : performScan())
     dataWindow.exportButton.clicked.connect(lambda : save_file_gui(exportClusters, prompt='Export cluster data to text file', filetypes='*.txt'))
-    dataWindow.clusterButton.clicked.connect(clusterPressed)
+    dataWindow.clusterButton.clicked.connect(performScan)
 
     roiDataTable = DataWidget(sortable=True)
     dataWindow.clusterTable.save = saveToTxt

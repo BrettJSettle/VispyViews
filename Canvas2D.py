@@ -142,8 +142,6 @@ class Canvas(QtCore.QObject, app.Canvas):
         center = event.pos
         dz = event.delta[1]
         self.panzoom.zoom(np.exp(np.array([.1, .1]) * dz), center)
-        #for ch in self.markers:
-        #    ch._size=np.ones((len(ch.points))).astype(np.float32) * 2 * self.pixel_scale
 
     def on_resize(self, event):
         self.width, self.height = event.size
