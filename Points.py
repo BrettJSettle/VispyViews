@@ -8,7 +8,10 @@ class ActivePoint():
         self.data = data
 
     def withZ(self):
-        return np.array([self[0], self[1], self['Zc']])
+        return np.array([self[0], self[1], self['Zc'] if 'Zc' in self.data else 0])
+
+    def __contains__(self, item):
+        return item in self.data
 
     def __getitem__(self, item):
         if type(item) in (int, tuple, slice):

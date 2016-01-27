@@ -29,8 +29,6 @@ class DensityBasedScanner(QtCore.QThread):
 		if minNeighbors != None:
 			self.minNeighbors = minNeighbors
 		self.scanner = DBSCAN(eps=self.epsilon, min_samples=self.minNeighbors)
-		if len(self.points) > 0:
-			self.start()
 
 	def run(self):
 		clusters = []

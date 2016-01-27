@@ -10,8 +10,8 @@ import pyqtgraph as pg
 
 class DataWidget(pg.TableWidget):
 	__name__ = "Data Widget"
-	def __init__(self, sortable=False, **args):
-		pg.TableWidget.__init__(self, **args)
+	def __init__(self, parent=None, sortable=False, **args):
+		pg.TableWidget.__init__(self, parent, **args)
 		if 'name' in args:
 			self.__name__ = args.pop('name')
 		self.setSortingEnabled(sortable)

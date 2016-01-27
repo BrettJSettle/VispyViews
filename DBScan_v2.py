@@ -1,12 +1,5 @@
 from __future__ import division
 import numpy as np
-from PyQt4.QtCore import pyqtSignal as Signal
-from vispy import app
-from vispy import gloo
-from vispy.visuals.shaders import ModularProgram
-from vispy.visuals import Visual, LinePlotVisual, LineVisual, PolygonVisual
-from vispy.visuals.transforms import (STTransform, LogTransform,
-                                      TransformSystem, ChainTransform)
 from pyqtgraph import QtGui, QtCore
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
@@ -19,13 +12,13 @@ from DataWidget import DataWidget
 from scan_ import DensityBasedScanner
 import threading
 from file_ import *
-from settings import settings
+import file_manager
 
 class Visual3D(gl.GLScatterPlotItem):
-    def __init__(self, active_points):
+    def __init__(self, active_points, roi):
         gl.GLScatterPlotItem.__init__(self)
         self.points = active_points
-        colors = np.array([255 * ChannelVisual.getChannelColor(ap['Channel Name']) for ap in active_points])
+        colors = np.array([255 * ChannelVisual.getChannelColor(ap['Channel Name']) if 'Channel Name' in ap else roi.border_color for ap in active_points])
         pos = [ap.withZ() for ap in active_points]
         self.setData(pos=np.array(pos), color=colors, pxMode=True, size=4)
 
@@ -39,7 +32,7 @@ def make3DPlot(roi):
     center = np.average([p.withZ() for p in points], 0)
     if len(points) == 0:
         return
-    scatter = Visual3D(points)
+    scatter = Visual3D(points, roi)
     view3DWindow = gl.GLViewWidget()
     view3DWindow.addItem(scatter)
     atX, atY, atZ = view3DWindow.cameraPosition()
@@ -48,11 +41,11 @@ def make3DPlot(roi):
     view3DWindow.opts['center'] = QtGui.QVector3D(*center)
     return view3DWindow.show()
 
-def remove_points_in_roi(roi):
+def remove_points_outside_roi(roi):
     for ch in canvas.markers:
         points = []
         for p in ch.points:
-            if not roi.contains(p.pos):
+            if roi.contains(p.pos):
                 points.append(p)
         ch.set_data(points)
 
@@ -75,25 +68,28 @@ def connect_roi(roi):
     roi.selectionChanged.connect(lambda roi, b: performScan(roi))
     roi.menu.addAction(QtGui.QAction("Plot points on 3D Plane", roi.menu, triggered = lambda : make3DPlot(roi)))
     roi.menu.addAction(QtGui.QAction("Export points in ROI", roi.menu, triggered=lambda : save_file_gui(exportPointsInROI, prompt='Export Points in roi %d to a text file' % roi.id, filetypes='Text Files (*.txt)', args=[roi])))
-    roi.menu.addAction(QtGui.QAction('Remove points in ROI', roi.menu, triggered = lambda : remove_points_in_roi(roi)))
+    roi.menu.addAction(QtGui.QAction('Remove points outside ROI', roi.menu, triggered = lambda : remove_points_outside_roi(roi)))
+    roi.menu.addAction(QtGui.QAction('Remove ROI', roi.menu, triggered = lambda : canvas.remove_roi(roi)))
     fillROITable()
 
 def import_channels(fname):
     global canvas
-    channel_names = set(np.loadtxt(fname, usecols=[0], delimiter='\t', dtype='S16', skiprows=1))
-    win.statusBar().showMessage('Found channels: ' + ', '.join([c.decode('utf-8') for c in channel_names]))
     t = time.time()
     headers = [s.strip() for s in open(fname, 'r').readline().split('\t')]
-    dtypes = {'names': headers, 'formats': ['a16'] + (['f8'] * (len(headers) - 1))}
-    data = np.loadtxt(fname, skiprows=1, dtype=dtypes, delimiter='\t')
+    data = file_to_array(fname)
     active_points = [ActivePoint(dict(zip(headers, d))) for d in data]
-    for ch in channel_names:
-        ps = [p for p in active_points if p['Channel Name'] == ch]
-        canvas.markers.append(ChannelVisual(name=ch.decode('utf-8'), active_points=ps))
-    x, y = np.transpose([p.pos for p in active_points])
+
+    if headers[0] == 'Channel Name':
+        channel_names = set(np.loadtxt(fname, usecols=[0], delimiter='\t', dtype='S16', skiprows=1))
+        dataWindow.statusBar().showMessage('Found channels: ' + ', '.join([c.decode('utf-8') for c in channel_names]))
+        for ch in channel_names:
+            ps = [p for p in active_points if p['Channel Name'] == ch]
+            canvas.markers.append(ChannelVisual(name=ch.decode('utf-8'), active_points=ps))
+    else:
+        canvas.markers.append(ChannelVisual(name=fname, active_points=active_points))
     canvas.panzoom.translate = [0, 0, 0, 0]
     canvas.panzoom.scale = [.05, .05, 0, 0]
-    win.statusBar().showMessage('Successfully imported %s (%s s)' % (fname, time.time() - t))
+    dataWindow.statusBar().showMessage('Successfully imported %s (%s s)' % (fname, time.time() - t))
 
 def scanFinished(clusts, noise):
     global clusters
@@ -102,25 +98,24 @@ def scanFinished(clusts, noise):
     for cluster in clusters[:100]:
         meanxy = np.mean([p.pos for p in cluster.points], 0)
         values.append([len(cluster.points), cluster.centroid, cluster.grid_area, cluster.box_area, cluster.density, cluster.averageDistance])
-    dbscanWidget.clusterTable.setData(values)
-    dbscanWidget.clusterTable.setHorizontalHeaderLabels(["N Points", 'Centroid', 'Grid Area', 'Box Area', 'Density', 'Average Distance'])
-    win.statusBar().showMessage('%d clusters found (%s s)' % (len(clusters), time.time() - scanThread.start_time))
+    dataWindow.clusterTable.setData(values)
+    dataWindow.clusterTable.setHorizontalHeaderLabels(["N Points", 'Centroid', 'Grid Area', 'Box Area', 'Density', 'Average Distance'])
+    dataWindow.statusBar().showMessage('%d clusters found (%s s)' % (len(clusters), time.time() - scanThread.start_time))
 
 def performScan(roi=None):
-    if not dbscanWidget.groupBox.isChecked():
+    if not dataWindow.groupBox.isChecked():
         return
     if canvas.current_roi != None and canvas.current_roi.selected:
         roi = canvas.current_roi
     points = []
     if roi == None or not any([ROI.selected for ROI in canvas.roi_visuals]):
-        return
-        #for ch in canvas.markers:
-        #    points.extend(ch.points)
+        for ch in canvas.markers:
+            points.extend(ch.points)
     elif roi != None:
         points = points_in_roi(roi)
     if len(points) == 0:
         return
-    win.statusBar().showMessage('Clustering %d points. Analysis progress in command prompt' % len(points))
+    dataWindow.statusBar().showMessage('Clustering %d points. Analysis progress in command prompt' % len(points))
     scanThread.start_time = time.time()
     scanThread.setPoints(points)
 
@@ -138,28 +133,27 @@ def fillROITable():
     roiDataTable.setHorizontalHeaderLabels(['ROI #', 'N Points'] + ["N %s" % i.name for i in canvas.markers])
 
 def exportPointsInROI(fname, roi):
-    fname = str(QtGui.QFileDialog.getSaveFileName(None, 'Save Points in ROI to text file', '*.txt'))
     if fname == '':
         return
     points = points_in_roi(roi)
-    win.statusBar().showMessage('Exporting %d points to %s' % (len(points), fname))
+    dataWindow.statusBar().showMessage('Exporting %d points to %s' % (len(points), fname))
     t = time.time()
     headers = points[0].data.keys()
     with open(fname, 'w') as outf:
         outf.write('\t'.join(headers) + '\n')
         for p in points:
             outf.write('\t'.join([str(p.data[k]) for k in headers]) + '\n')
-    win.statusBar().showMessage('Successfully exported points to %s (%s s)' % (fname, time.time() - t))
+    dataWindow.statusBar().showMessage('Successfully exported points to %s (%s s)' % (fname, time.time() - t))
 
 def exportCluster(fname):
-    win.statusBar().showMessage('Exporting %d clusters to %s' % (len(clusters), fname))
+    dataWindow.statusBar().showMessage('Exporting %d clusters to %s' % (len(clusters), fname))
     t = time.time()
     headers = ["N Points", 'Centroid', 'Grid Area', 'Box Area', 'Density', 'Average Distance']
     with open(fname, 'w') as outf:
         outf.write('\t'.join(headers) + '\n')
         for cluster in clusters:
             outf.write('\t'.join([len(cluster.points), cluster.centroid, cluster.grid_area, cluster.box_area, cluster.density, cluster.averageDistance]) + '\n')
-    win.statusBar().showMessage('Successfully clusters points to %s (%s s)' % (fname, time.time() - t))
+    dataWindow.statusBar().showMessage('Successfully clusters points to %s (%s s)' % (fname, time.time() - t))
 
 class EventFilter(QtCore.QObject):
     def __init__(self):
@@ -177,8 +171,9 @@ class EventFilter(QtCore.QObject):
                 filename=url.toString()
                 filename=filename.split('file:///')[1]
                 if filename.endswith('.txt'):
-                    win.statusBar().showMessage('Loading channels from %s' % (filename))
-                    import_channels(filename)#This fails on windows symbolic links.  http://stackoverflow.com/questions/15258506/os-path-islink-on-windows-with-python
+                    dataWindow.statusBar().showMessage('Loading points from %s' % (filename))
+                    import_channels(filename)
+                    file_manager.update_history(filename)
                 else:
                     obj.statusBar().showMessage('%s widget does not support %s files...' % (obj.__name__, filetype))
                 event.accept()
@@ -190,7 +185,6 @@ eventFilter = EventFilter()
 def onClose(event):
     scanThread.exit(0)
     scanThread.terminate()
-    settings.save()
     sys.exit(0)
 
 def drawEvent(event):
@@ -200,59 +194,63 @@ def drawEvent(event):
         cluster.draw(canvas.tr_sys)
 
 def saveToTxt(data):
-    fileName = QtGui.QFileDialog.getSaveFileName(dbscanWidget, "Save As..", "", "Text file (*.txt)")
+    fileName = save_file_gui(lambda : open(fileName, 'w').write(data), prompt="Save As..", filetypes="Text file (*.txt)")
     if fileName == '':
         return
-    open(fileName, 'w').write(data)
+
+def make_recent_file_actions():
+    dataWindow.menuRecentFiles.clear()
+    if len(file_manager.recent_files()) == 0:
+        noRecent = QtGui.QAction("No Recent Files", dataWindow.menuRecentFiles)
+        noRecent.setEnabled(False)
+        dataWindow.menuRecentFiles.addAction(noRecent)
+    for rec in file_manager.recent_files():
+        action = QtGui.QAction(rec, dataWindow, triggered=lambda : import_channels(rec))
+        dataWindow.menuRecentFiles.addAction(action)
 
 if __name__ == '__main__':
     a = QtGui.QApplication([])
     ignore = {'Z Rejected'}
     clusters = []
-    dbscanWidget = uic.loadUi('ui/DBScan.ui')
-    dbscanWidget.__name__ = 'DBSCAN'
-    settings.reload()
+    dataWindow = uic.loadUi('ui/scan_ui.ui')
+    dataWindow.__name__ = 'DBSCAN'
     scanThread = DensityBasedScanner()
     scanThread.scanFinished.connect(scanFinished)
-    dbscanWidget.epsilonSpin.setOpts(value=60, step=.1, maximum=1000)
-    dbscanWidget.epsilonSpin.valueChanged.connect(lambda epsi: scanThread.update(epsilon=epsi))
-    dbscanWidget.minNeighborsSpin.setOpts(value=3, int=True, step=1)
-    dbscanWidget.minNeighborsSpin.valueChanged.connect(lambda minNeighbors: scanThread.update(minNeighbors=minNeighbors))
-    dbscanWidget.minDensitySpin.setOpts(value=8, int=True, step=1)
-    dbscanWidget.minDensitySpin.valueChanged.connect(lambda minP: scanThread.update(minP = minP))
-    dbscanWidget.groupBox.toggled.connect(lambda : performScan())
-    dbscanWidget.exportButton.clicked.connect(lambda : save_file_gui(exportClusters, prompt='Export cluster data to text file', filetypes='*.txt'))
+    dataWindow.epsilonSpin.setOpts(value=60, step=.1, maximum=1000)
+    dataWindow.epsilonSpin.valueChanged.connect(lambda epsi: scanThread.update(epsilon=epsi))
+    dataWindow.minNeighborsSpin.setOpts(value=3, int=True, step=1)
+    dataWindow.minNeighborsSpin.valueChanged.connect(lambda minNeighbors: scanThread.update(minNeighbors=minNeighbors))
+    dataWindow.minDensitySpin.setOpts(value=8, int=True, step=1)
+    dataWindow.minDensitySpin.valueChanged.connect(lambda minP: scanThread.update(minP = minP))
+    dataWindow.groupBox.toggled.connect(lambda : performScan())
+    dataWindow.exportButton.clicked.connect(lambda : save_file_gui(exportClusters, prompt='Export cluster data to text file', filetypes='*.txt'))
+    dataWindow.clusterButton.clicked.connect(clusterPressed)
 
     roiDataTable = DataWidget(sortable=True)
-    dbscanWidget.clusterTable.save = saveToTxt
+    dataWindow.clusterTable.save = saveToTxt
     roiDataTable.setFormat("%3.3f")
     roiDataTable.__name__ = "ROI Data"
     roiDataTable.setHorizontalHeaderLabels(['ROI #', 'N Points'])
-    
-    win = QtGui.QMainWindow()
-    win.setAcceptDrops(True)
-    #win.installEventFilter(eventFilter)
-    widg = QtGui.QWidget()
-    win.setCentralWidget(widg)
-    layout = QtGui.QGridLayout(widg)
-    layout.addWidget(dbscanWidget, 0, 0)
-    layout.addWidget(roiDataTable, 1, 0)
-    win.setGeometry(200, 100, 400, 800)
+
+    dataWindow.setAcceptDrops(True)
+    dataWindow.setGeometry(200, 100, 400, 800)
 
     canvas = Canvas()
     canvas.on_draw = drawEvent
     canvas.native.installEventFilter(eventFilter)
     canvas.native.setAcceptDrops(True)
     canvas.native.closeEvent = onClose
-    win.closeEvent = onClose
+    dataWindow.closeEvent = onClose
     #canvas.on_mouse_release = mouseRelease
     canvas.roiCreated.connect(connect_roi)
     canvas.roiDeleted.connect(fillROITable)
-    canvas.native.show()
+    dataWindow.menuRecentFiles.aboutToShow.connect(make_recent_file_actions)
+    canvas.native.setGeometry(600, 200, canvas.native.width(), canvas.native.height())
     #canvas.native.setGeometry(300, 50, 800, 800)
-    menuBar = win.menuBar()
-    fileMenu = menuBar.addMenu('File')
-    fileMenu.addAction(QtGui.QAction('Open Scatter', fileMenu, triggered=lambda : open_file_gui(import_channels, prompt='Import channels from Text file', filetypes="Text Files (*.txt)")))
+    dataWindow.actionOpen.triggered.connect(lambda : open_file_gui(import_channels, prompt='Import channels from Text file', filetypes="Text Files (*.txt)"))
     view3DWindow = None
-    win.show()
+    dataWindow.show()
+    
+    canvas.native.show()
+
     a.exec_()

@@ -40,7 +40,7 @@ class Canvas(QtCore.QObject, app.Canvas):
                        blend_func=('src_alpha', 'one_minus_src_alpha'))
 
         self.timer = app.Timer('auto', connect=self.on_timer, start=True)
-        self.native.setFixedSize(800, 600)
+        #self.native.setFixedSize(800, 600)
 
     def on_timer(self, event):
         self.update()
@@ -101,10 +101,13 @@ class Canvas(QtCore.QObject, app.Canvas):
         elif event.key == 'Delete':
             for roi in self.roi_visuals[:]:
                 if roi.selected:
-                    if self.current_roi == roi:
-                        self.current_roi = None
-                    self.roi_visuals.remove(roi)
-                    self.roiDeleted.emit(roi)
+                    self.delete_roi(roi)
+                    
+    def remove_roi(self, roi):
+        if self.current_roi == roi:
+            self.current_roi = None
+        self.roi_visuals.remove(roi)
+        self.roiDeleted.emit(roi)
 
 
     def on_mouse_move(self, event):
