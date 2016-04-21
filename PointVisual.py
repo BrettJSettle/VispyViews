@@ -16,19 +16,15 @@ import file_manager
 
 class Visual3D(gl.GLScatterPlotItem):
     def __init__(self, active_points, roi):
-        gl.GLScatterPlotItem.__init__(self)
+        gl.GLScatterPlotItem.__init__(self)        
         self.points = active_points
-        colors = np.array([255 * ChannelVisual.getChannelColor(ap['Channel Name']) if 'Channel Name' in ap else roi.border_color for ap in active_points])
+        colors = np.array([255 * (ChannelVisual.getChannelColor(ap['Channel Name']) if 'Channel Name' in ap else roi._selected_color) for ap in active_points])
         pos = [ap.withZ() for ap in active_points]
         self.setData(pos=np.array(pos), color=colors, pxMode=True, size=4)
 
 def make3DPlot(roi):
     global view3DWindow
-    points = []
-    for ch in canvas.markers:
-        for p in ch.points:
-            if roi.contains(p.pos):
-                points.append(p)
+    points = points_in_roi(roi)
     center = np.average([p.withZ() for p in points], 0)
     if len(points) == 0:
         return

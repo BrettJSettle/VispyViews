@@ -45,7 +45,7 @@ def open_file_gui(func, filetypes, prompt='Open File', args=[]):
         func(filename, *args)
 
 def save_file_gui(func, filetypes, prompt = 'Save File', args = []):
-    filename= file_manager.getSaveFileName(caption=prompt, directory=directory, filter=filetypes)
+    filename= file_manager.getSaveFileName(caption=prompt, filter=filetypes)
     if filename != '':
         func(filename, *args)
 
