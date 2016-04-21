@@ -20,10 +20,10 @@ class ClusterVisual(PolygonVisual):
         self.points = active_points
         pos = [p.pos for p in active_points]
         self.centroid = np.mean(pos, 0)
-        self.box_area = boxArea(pos)#concaveArea([p.pos for p in active_points])
-        self.grid_area = gridArea(pos)
+        #self.box_area = boxArea(pos)#concaveArea([p.pos for p in active_points])
+        #self.grid_area = gridArea(pos)
         self.averageDistance = averageDistance(pos)
-        self.density = len(self.points) / self.box_area
+        #self.density = len(self.points) / self.box_area
         self.border_points = getBorderPoints(pos)
         self.pos = np.array(self.border_points, dtype=np.float32)
 

@@ -57,7 +57,6 @@ def points_in_roi(roi, channel = None):
 
 def connect_roi(roi):
     roi.translateFinished.connect(fillROITable)
-    #roi.selectionChanged.connect(lambda roi, b: performScan(roi))
     roi.menu.addAction(QtGui.QAction("DBScan inside ROI", roi.menu, triggered = lambda : performScan(roi)))
     roi.menu.addAction(QtGui.QAction("Plot points on 3D Plane", roi.menu, triggered = lambda : make3DPlot(roi)))
     roi.menu.addAction(QtGui.QAction("Export points in ROI", roi.menu, triggered=lambda : save_file_gui(exportPointsInROI, prompt='Export Points in roi %d to a text file' % roi.id, filetypes='Text Files (*.txt)', args=[roi])))
@@ -89,10 +88,9 @@ def scanFinished(clusts, noise):
     clusters = clusts
     values = []
     for cluster in clusters[:100]:
-        meanxy = np.mean([p.pos for p in cluster.points], 0)
-        values.append([len(cluster.points), cluster.centroid, cluster.grid_area, cluster.box_area, cluster.density, cluster.averageDistance])
+        values.append([len(cluster.points), cluster.centroid, cluster.averageDistance])
     dataWindow.clusterTable.setData(values)
-    dataWindow.clusterTable.setHorizontalHeaderLabels(["N Points", 'Centroid', 'Grid Area', 'Box Area', 'Density', 'Average Distance'])
+    dataWindow.clusterTable.setHorizontalHeaderLabels(["N Points", 'Centroid', 'Average Internal Distance'])
     dataWindow.statusBar().showMessage('%d clusters found (%s s)' % (len(clusters), time.time() - scanThread.start_time))
 
 def performScan(roi=None):
@@ -138,15 +136,27 @@ def exportPointsInROI(fname, roi):
             outf.write('\t'.join([str(p.data[k]) for k in headers]) + '\n')
     dataWindow.statusBar().showMessage('Successfully exported points to %s (%s s)' % (fname, time.time() - t))
 
-def exportCluster(fname):
+def exportClusters(fname):
     dataWindow.statusBar().showMessage('Exporting %d clusters to %s' % (len(clusters), fname))
     t = time.time()
-    headers = ["N Points", 'Centroid', 'Grid Area', 'Box Area', 'Density', 'Average Distance']
+    headers = ["N Points", 'Centroid', 'Average Internal Distance']
     with open(fname, 'w') as outf:
         outf.write('\t'.join(headers) + '\n')
         for cluster in clusters:
-            outf.write('\t'.join([len(cluster.points), cluster.centroid, cluster.grid_area, cluster.box_area, cluster.density, cluster.averageDistance]) + '\n')
-    dataWindow.statusBar().showMessage('Successfully clusters points to %s (%s s)' % (fname, time.time() - t))
+            outf.write('\t'.join([str(i) for i in [len(cluster.points), cluster.centroid, cluster.averageDistance]]) + '\n')
+    dataWindow.statusBar().showMessage('Successfully exported clusters to %s (%s s)' % (fname, time.time() - t))
+
+def exportDistances(fname):
+    dataWindow.statusBar().showMessage('Exporting distances to %s' % fname)
+    t = time.time()
+    dists = []
+    for i, cluster in enumerate(clusters):
+        for clust2 in clusters[i+1:]:
+            dists.append(np.norm.linalg(np.subtract(cluster.centroid, clust2.centroid)))
+    with open(fname, 'w') as outf:
+        outf.write('Distance')
+        outf.write('\n'.join([str(dist) for dist in dists]))
+    dataWindow.statusBar().showMessage('Successfully saved distances to %s (%s s)' % (fname, time.time() - t))
 
 class EventFilter(QtCore.QObject):
     def __init__(self):
@@ -191,16 +201,6 @@ def saveToTxt(data):
     if fileName == '':
         return
 
-def make_recent_file_actions():
-    dataWindow.menuRecentFiles.clear()
-    if len(file_manager.recent_files()) == 0:
-        noRecent = QtGui.QAction("No Recent Files", dataWindow.menuRecentFiles)
-        noRecent.setEnabled(False)
-        dataWindow.menuRecentFiles.addAction(noRecent)
-    for rec in file_manager.recent_files():
-        action = QtGui.QAction(rec, dataWindow, triggered=lambda : import_channels(rec))
-        dataWindow.menuRecentFiles.addAction(action)
-
 if __name__ == '__main__':
     a = QtGui.QApplication([])
     ignore = {'Z Rejected'}
@@ -218,8 +218,11 @@ if __name__ == '__main__':
     dataWindow.minDensitySpin.valueChanged.connect(lambda minP: scanThread.update(minP = minP))
     dataWindow.exportButton.clicked.connect(lambda : save_file_gui(exportClusters, prompt='Export cluster data to text file', filetypes='*.txt'))
     dataWindow.clusterButton.clicked.connect(performScan)
+    dataWindow.actionExportClusters.triggered.connect(lambda : save_file_gui(exportClusters, prompt='Export cluster data to text file', filetypes='*.txt'))
+    dataWindow.actionExportDistances.triggered.connect(lambda : save_file_gui(exportDistances, prompt='Export cluster distances to text file', filetypes='*.txt'))
 
-    roiDataTable = DataWidget(sortable=True)
+    roiDataTable = dataWindow.tableWidget
+    #roiDataTable.setSortable(False)
     dataWindow.clusterTable.save = saveToTxt
     roiDataTable.setFormat("%3.3f")
     roiDataTable.__name__ = "ROI Data"
@@ -237,7 +240,6 @@ if __name__ == '__main__':
     #canvas.on_mouse_release = mouseRelease
     canvas.roiCreated.connect(connect_roi)
     canvas.roiDeleted.connect(fillROITable)
-    dataWindow.menuRecentFiles.aboutToShow.connect(make_recent_file_actions)
     canvas.native.setGeometry(600, 200, canvas.native.width(), canvas.native.height())
     #canvas.native.setGeometry(300, 50, 800, 800)
     dataWindow.actionOpen.triggered.connect(lambda : open_file_gui(import_channels, prompt='Import channels from Text file', filetypes="Text Files (*.txt)"))

@@ -179,22 +179,23 @@
     <property name="title">
      <string>File</string>
     </property>
-    <widget class="QMenu" name="menuRecentFiles">
-     <property name="title">
-      <string>Recent Files</string>
-     </property>
-     <addaction name="actionNo_Recent_Files"/>
-    </widget>
     <addaction name="actionOpen"/>
-    <addaction name="menuRecentFiles"/>
     <addaction name="actionClose"/>
    </widget>
+   <widget class="QMenu" name="menuExport">
+    <property name="title">
+     <string>Export</string>
+    </property>
+    <addaction name="actionExportDistances"/>
+    <addaction name="actionExportClusters"/>
+   </widget>
    <addaction name="menuFile"/>
+   <addaction name="menuExport"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionOpen">
    <property name="text">
-    <string>Open Points File</string>
+    <string>Open File</string>
    </property>
   </action>
   <action name="actionNo_Recent_Files">
@@ -208,6 +209,16 @@
   <action name="actionClose">
    <property name="text">
     <string>Close</string>
+   </property>
+  </action>
+  <action name="actionExportDistances">
+   <property name="text">
+    <string>Cluster Distances</string>
+   </property>
+  </action>
+  <action name="actionExportClusters">
+   <property name="text">
+    <string>Cluster Data</string>
    </property>
   </action>
  </widget>

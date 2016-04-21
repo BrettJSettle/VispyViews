@@ -19,7 +19,7 @@ class Canvas(QtCore.QObject, app.Canvas):
     roiDeleted = Signal(object)
     def __init__(self):
         QtCore.QObject.__init__(self)
-        app.Canvas.__init__(self, keys='interactive')
+        app.Canvas.__init__(self, keys='interactive', resizable=False)
         ps = self.pixel_scale
 
         self.roi_visuals = []
@@ -151,8 +151,10 @@ class Canvas(QtCore.QObject, app.Canvas):
         gloo.clear()
         for ch in self.markers:
             ch.draw(self.tr_sys)
+
         for roi in self.roi_visuals:
             roi.draw(self.tr_sys)
+            
         if self.current_roi != None:
             self.current_roi.draw(self.tr_sys)
         
