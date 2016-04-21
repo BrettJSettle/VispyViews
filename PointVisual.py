@@ -152,7 +152,7 @@ def exportDistances(fname):
     dists = []
     for i, cluster in enumerate(clusters):
         for clust2 in clusters[i+1:]:
-            dists.append(np.norm.linalg(np.subtract(cluster.centroid, clust2.centroid)))
+            dists.append(np.linalg.norm(np.subtract(cluster.centroid, clust2.centroid)))
     with open(fname, 'w') as outf:
         outf.write('Distance')
         outf.write('\n'.join([str(dist) for dist in dists]))
