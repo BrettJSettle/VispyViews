@@ -1,4 +1,5 @@
 from __future__ import division
+import dep_check
 import numpy as np
 from pyqtgraph import QtGui, QtCore
 import pyqtgraph as pg
